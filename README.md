@@ -52,7 +52,8 @@ biil_generator/
 │   │   ├── middleware/         # Google token verification & API Gateway response helpers
 │   │   ├── services/           # PDFKit renderer, calculation logic, invoice status/lock rules, client totals, GridFS streaming
 │   │   └── tests/              # Unit and integration test suites
-│   ├── scripts/                # Data migration utilities
+│   ├── scripts/                # Data migration, Lambda packaging (build-lambda.mjs) and deploy.sh
+│   ├── template.yaml           # AWS SAM template (Lambda + HTTP API, tagged)
 │   ├── dev-server.js           # Zero-Express local Lambda dev runner
 │   ├── package.json
 │   └── .env.example
@@ -66,6 +67,7 @@ biil_generator/
 │   │   └── main.jsx
 │   ├── vite.config.js
 │   └── package.json
+├── netlify.toml                # Netlify build + SPA redirects for the frontend
 └── README.md
 ```
 
@@ -117,3 +119,29 @@ npm run dev
 cd backend
 npm test
 ```
+
+---
+
+## Deployment
+
+### Backend → AWS Lambda + API Gateway (AWS SAM)
+
+Uses your local AWS credentials (default profile, or `AWS_PROFILE=<name>`). Requires the AWS CLI and SAM CLI.
+
+```bash
+cd backend
+npm run deploy
+```
+
+This stages a clean package (source + production dependencies, no tests or `.env`), then runs `sam deploy` for the `billing-backend` stack. `DB_URL`, `DB_NAME` and `GOOGLE_CLIENT_ID` are read from `backend/.env` (or the environment) and passed as stack parameters. The script prints the API URL at the end.
+
+All resources are tagged `ORG=neerajvishwakarma` and `APP=Billing` (stack-level tags plus explicit tags on the function, HTTP API and log group). Override the stack name or region with `STACK_NAME` / `AWS_REGION`.
+
+### Frontend → Netlify
+
+[netlify.toml](netlify.toml) builds `frontend/` and serves `dist/` with an SPA fallback. In Netlify, import the repo and set these environment variables:
+
+- `VITE_API_URL` – the API URL printed by the backend deploy
+- `VITE_GOOGLE_CLIENT_ID` – your Google OAuth client ID
+
+Also add the Netlify site URL as an authorized JavaScript origin on the Google OAuth client.

@@ -18,3 +18,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .DS_Store
+# Lambda build output
+backend/.build/
+backend/.aws-sam/
+.netlify/

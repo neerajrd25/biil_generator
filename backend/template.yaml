@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Bill Generator Pro - Lambda backend behind an API Gateway HTTP API
+
+Parameters:
+  DbUrl:
+    Type: String
+    NoEcho: true
+    Description: MongoDB connection string
+  DbName:
+    Type: String
+    Default: nv_billings
+  GoogleClientId:
+    Type: String
+    Description: Google OAuth client ID used to verify ID tokens
+  Org:
+    Type: String
+    Default: neerajvishwakarma
+  App:
+    Type: String
+    Default: Billing
+
+Globals:
+  Function:
+    Tags:
+      ORG: !Ref Org
+      APP: !Ref App
+
+Resources:
+  BillingApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Tags:
+        ORG: !Ref Org
+        APP: !Ref App
+
+  BillingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      # Staged by scripts/build-lambda.mjs (production dependencies only, no .env or tests)
+      CodeUri: .build/lambda/
+      Handler: src/handlers/index.handler
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      MemorySize: 512
+      Timeout: 29
+      Environment:
+        Variables:
+          NODE_ENV: production
+          DB_URL: !Ref DbUrl
+          DB_NAME: !Ref DbName
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BillingApi
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref BillingApi
+            Path: /{proxy+}
+            Method: ANY
+
+  BillingFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${BillingFunction}
+      RetentionInDays: 1
+      Tags:
+        - Key: ORG
+          Value: !Ref Org
+        - Key: APP
+          Value: !Ref App
+
+Outputs:
+  ApiUrl:
+    Description: Set this as VITE_API_URL in Netlify
+    Value: !Sub https://${BillingApi}.execute-api.${AWS::Region}.amazonaws.com
+  FunctionName:
+    Value: !Ref BillingFunction

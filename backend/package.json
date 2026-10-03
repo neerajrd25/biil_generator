@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node --watch dev-server.js",
     "start": "node dev-server.js",
-    "test": "node --test src/tests/**/*.test.js"
+    "test": "node --test src/tests/**/*.test.js",
+    "build:lambda": "node scripts/build-lambda.mjs",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
