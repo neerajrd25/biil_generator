@@ -13,6 +13,7 @@ export async function handleAuth(event) {
     });
   } catch (err) {
     console.error('handleAuth error:', err);
-    return errorResponse(401, 'Authentication failed', err);
+    const isAuthError = err.message && (err.message.includes('Unauthorized') || err.message.includes('Google Token'));
+    return errorResponse(isAuthError ? 401 : 500, 'Authentication failed', err);
   }
 }
