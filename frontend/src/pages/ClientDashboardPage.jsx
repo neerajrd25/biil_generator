@@ -1,5 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Container, Typography, Box, Button, Grid, Paper, Alert, CircularProgress, Chip, Divider } from '@mui/material';
+import { Container, Typography, Box, Button, Grid, Paper, Alert, CircularProgress, Chip, Divider, Avatar } from '@mui/material';
+import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
+import HourglassBottomIcon from '@mui/icons-material/HourglassBottom';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { brandGradient } from '../theme';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
 import { Link as RouterLink, useParams } from 'react-router-dom';
@@ -9,7 +14,7 @@ import StatCard from '../components/StatCard';
 import { STATUS_META, errorMessage, formatMoney } from '../utils/format';
 
 const AGING_BUCKETS = [
-  { key: 'current', label: 'Not yet due', color: '#94A3B8' },
+  { key: 'current', label: 'Not yet due', color: '#818CF8' },
   { key: 'days1to30', label: '1-30 days late', color: '#F59E0B' },
   { key: 'days31to60', label: '31-60 days late', color: '#F97316' },
   { key: 'days60plus', label: '60+ days late', color: '#DC2626' },
@@ -48,8 +53,8 @@ function MonthlyChart({ months, currency }) {
         {months.map((m) => (
           <Box key={m.month} flex={1} minWidth={0} height="100%" display="flex" alignItems="flex-end" justifyContent="center" gap="2px"
             title={`${m.month}: billed ${formatMoney(m.billed, currency)}, collected ${formatMoney(m.paid, currency)}`}>
-            <Box sx={{ width: '45%', height: `${(m.billed / max) * 100}%`, minHeight: m.billed > 0 ? 2 : 0, bgcolor: '#38BDF8', borderRadius: '3px 3px 0 0' }} />
-            <Box sx={{ width: '45%', height: `${(m.paid / max) * 100}%`, minHeight: m.paid > 0 ? 2 : 0, bgcolor: '#22C55E', borderRadius: '3px 3px 0 0' }} />
+            <Box sx={{ width: '45%', height: `${(m.billed / max) * 100}%`, minHeight: m.billed > 0 ? 2 : 0, bgcolor: '#6366F1', borderRadius: '3px 3px 0 0' }} />
+            <Box sx={{ width: '45%', height: `${(m.paid / max) * 100}%`, minHeight: m.paid > 0 ? 2 : 0, bgcolor: '#10B981', borderRadius: '3px 3px 0 0' }} />
           </Box>
         ))}
       </Box>
@@ -61,8 +66,8 @@ function MonthlyChart({ months, currency }) {
         ))}
       </Box>
       <Box display="flex" gap={2} mt={1}>
-        <Box display="flex" alignItems="center" gap={0.75}><Box width={10} height={10} bgcolor="#38BDF8" /><Typography variant="caption">Billed</Typography></Box>
-        <Box display="flex" alignItems="center" gap={0.75}><Box width={10} height={10} bgcolor="#22C55E" /><Typography variant="caption">Collected</Typography></Box>
+        <Box display="flex" alignItems="center" gap={0.75}><Box width={10} height={10} bgcolor="#6366F1" /><Typography variant="caption">Billed</Typography></Box>
+        <Box display="flex" alignItems="center" gap={0.75}><Box width={10} height={10} bgcolor="#10B981" /><Typography variant="caption">Collected</Typography></Box>
       </Box>
     </>
   );
@@ -111,26 +116,48 @@ export default function ClientDashboardPage() {
     <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
       {back}
 
-      <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'flex-start' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={2} mb={3}>
-        <Box minWidth={0}>
-          <Typography variant="h5" fontWeight={700} color="#0F172A" sx={{ wordBreak: 'break-word' }}>{client.clientName}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-            {client.isUnassigned ? 'Invoices without a client email' : client.clientEmail}
-          </Typography>
-          {client.clientContact && <Typography variant="body2" color="text.secondary">{client.clientContact}</Typography>}
-          {address && <Typography variant="body2" color="text.secondary">{address}</Typography>}
+      <Box
+        sx={{
+          position: 'relative', overflow: 'hidden', color: '#fff', borderRadius: 4, p: { xs: 2.5, sm: 4 }, mb: 3,
+          background: brandGradient, boxShadow: '0 20px 50px rgba(79,70,229,0.35)',
+          '&::after': { content: '""', position: 'absolute', right: -60, top: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.12)' },
+          '&::before': { content: '""', position: 'absolute', right: 90, bottom: -90, width: 180, height: 180, borderRadius: '50%', background: 'rgba(255,255,255,0.08)' },
+        }}
+      >
+        <Box position="relative" zIndex={1} display="flex" justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} flexDirection={{ xs: 'column', md: 'row' }} gap={3}>
+          <Box display="flex" alignItems="center" gap={2} minWidth={0}>
+            <Avatar sx={{ width: 64, height: 64, fontSize: 28, fontWeight: 800, bgcolor: 'rgba(255,255,255,0.22)', border: '2px solid rgba(255,255,255,0.5)' }}>
+              {(client.clientName || '?')[0].toUpperCase()}
+            </Avatar>
+            <Box minWidth={0}>
+              <Typography variant="h5" sx={{ wordBreak: 'break-word' }}>{client.clientName}</Typography>
+              <Typography variant="body2" sx={{ opacity: 0.9, wordBreak: 'break-all' }}>
+                {client.isUnassigned ? 'Invoices without a client email' : client.clientEmail}
+              </Typography>
+              {client.clientContact && <Typography variant="body2" sx={{ opacity: 0.85 }}>{client.clientContact}</Typography>}
+              {address && <Typography variant="body2" sx={{ opacity: 0.85 }}>{address}</Typography>}
+            </Box>
+          </Box>
+          <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+            {currencies.map(([currency, t]) => (
+              <Box key={currency} sx={{ bgcolor: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(6px)', borderRadius: 3, px: 2, py: 1 }}>
+                <Typography variant="caption" sx={{ opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.6 }}>Outstanding</Typography>
+                <Typography variant="h6" fontWeight={800}>{formatMoney(t.outstanding, currency)}</Typography>
+              </Box>
+            ))}
+            {!client.isUnassigned && (
+              <Button
+                component={RouterLink}
+                to={`/create?client=${encodeURIComponent(client.clientEmail)}`}
+                variant="contained"
+                startIcon={<AddIcon />}
+                sx={{ backgroundImage: 'none', bgcolor: '#fff', color: 'primary.main', boxShadow: '0 8px 20px rgba(0,0,0,0.2)', '&:hover': { backgroundImage: 'none', bgcolor: '#F1F5F9' } }}
+              >
+                New invoice
+              </Button>
+            )}
+          </Box>
         </Box>
-        {!client.isUnassigned && (
-          <Button
-            component={RouterLink}
-            to={`/create?client=${encodeURIComponent(client.clientEmail)}`}
-            variant="contained"
-            startIcon={<AddIcon />}
-            sx={{ backgroundColor: '#0284C7', '&:hover': { backgroundColor: '#0369A1' }, alignSelf: { sm: 'flex-start' } }}
-          >
-            New invoice
-          </Button>
-        )}
       </Box>
 
       {client.isUnassigned && (
@@ -153,24 +180,24 @@ export default function ClientDashboardPage() {
         <Box key={currency} mb={4}>
           {currencies.length > 1 && <Typography variant="subtitle1" fontWeight={700} mb={1}>{currency}</Typography>}
           <Grid container spacing={2} mb={2}>
-            <Grid item xs={6} md={3}><StatCard label="Total billed" value={formatMoney(t.billed, currency)} hint={`${t.invoiceCount} invoice${t.invoiceCount === 1 ? '' : 's'}`} /></Grid>
-            <Grid item xs={6} md={3}><StatCard label="Collected" value={formatMoney(t.paid, currency)} color="#15803D" /></Grid>
-            <Grid item xs={6} md={3}><StatCard label="Outstanding" value={formatMoney(t.outstanding, currency)} /></Grid>
+            <Grid item xs={6} md={3}><StatCard icon={<RequestQuoteOutlinedIcon />} label="Total billed" value={formatMoney(t.billed, currency)} hint={`${t.invoiceCount} invoice${t.invoiceCount === 1 ? '' : 's'}`} /></Grid>
+            <Grid item xs={6} md={3}><StatCard icon={<SavingsOutlinedIcon />} accent="#10B981" label="Collected" value={formatMoney(t.paid, currency)} color="#15803D" /></Grid>
+            <Grid item xs={6} md={3}><StatCard icon={<HourglassBottomIcon />} accent="#F59E0B" label="Outstanding" value={formatMoney(t.outstanding, currency)} /></Grid>
             <Grid item xs={6} md={3}>
-              <StatCard label="Overdue" value={formatMoney(t.overdue, currency)} color={t.overdue > 0 ? '#B91C1C' : '#0F172A'} hint={t.overdueCount ? `${t.overdueCount} invoice${t.overdueCount === 1 ? '' : 's'}` : undefined} />
+              <StatCard icon={<WarningAmberIcon />} accent="#EF4444" label="Overdue" value={formatMoney(t.overdue, currency)} color={t.overdue > 0 ? '#B91C1C' : '#0F172A'} hint={t.overdueCount ? `${t.overdueCount} invoice${t.overdueCount === 1 ? '' : 's'}` : undefined} />
             </Grid>
           </Grid>
 
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: '100%', bgcolor: 'rgba(255,255,255,0.9)' }}>
                 <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Outstanding by age</Typography>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>How long unpaid balances have been past their due date.</Typography>
                 <AgingBar aging={t.aging} currency={currency} />
               </Paper>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, height: '100%' }}>
+              <Paper variant="outlined" sx={{ p: 2.5, height: '100%', bgcolor: 'rgba(255,255,255,0.9)' }}>
                 <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Last 12 months</Typography>
                 <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>By invoice date: amount billed and how much of it has been collected.</Typography>
                 {monthlyByCurrency[currency] ? <MonthlyChart months={monthlyByCurrency[currency]} currency={currency} /> : (

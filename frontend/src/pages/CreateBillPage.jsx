@@ -38,6 +38,8 @@ export default function CreateBillPage() {
     vendorCity: '',
     vendorState: '',
     vendorPin: '',
+    vendorWebsite: '',
+    vendorWebsite2: '',
     taxId: '',
   });
 
@@ -113,6 +115,8 @@ export default function CreateBillPage() {
           vendorCity: p.vendorCity || '',
           vendorState: p.vendorState || '',
           vendorPin: p.vendorPin || '',
+          vendorWebsite: p.vendorWebsite || '',
+          vendorWebsite2: p.vendorWebsite2 || '',
           taxId: p.taxId || '',
         });
         if (p.accountDetail) {
@@ -313,7 +317,7 @@ export default function CreateBillPage() {
               startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircleOutlineIcon />}
               onClick={handleSaveBill}
               disabled={saving || Boolean(readOnlyReason)}
-              sx={{ backgroundColor: '#0284C7', '&:hover': { backgroundColor: '#0369A1' } }}
+              
             >
               {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Generate & Store Bill'}
             </Button>
@@ -450,6 +454,24 @@ export default function CreateBillPage() {
                     label="Postal Code"
                     value={billFrom.vendorPin}
                     onChange={(e) => setBillFrom({ ...billFrom, vendorPin: e.target.value })}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Website"
+                    value={billFrom.vendorWebsite}
+                    onChange={(e) => setBillFrom({ ...billFrom, vendorWebsite: e.target.value })}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Second Website"
+                    value={billFrom.vendorWebsite2}
+                    onChange={(e) => setBillFrom({ ...billFrom, vendorWebsite2: e.target.value })}
                   />
                 </Grid>
               </Grid>
@@ -660,7 +682,7 @@ export default function CreateBillPage() {
               <Divider sx={{ my: 1.5 }} />
               <Box display="flex" justifyContent="space-between">
                 <Typography variant="h6" fontWeight={700} color="#0F172A">Total:</Typography>
-                <Typography variant="h6" fontWeight={700} color="#0284C7">{currentSymbol}{total.toFixed(2)}</Typography>
+                <Typography variant="h6" fontWeight={700} color="#4F46E5">{currentSymbol}{total.toFixed(2)}</Typography>
               </Box>
             </Box>
           </Grid>
@@ -680,11 +702,11 @@ export default function CreateBillPage() {
         <Divider sx={{ my: 3 }} />
 
         {/* Optional Particulars / Bill Summary (Always Next Page) */}
-        <Card variant="outlined" sx={{ bgcolor: '#F8FAFC', borderColor: includeParticulars ? '#38BDF8' : '#E2E8F0' }}>
+        <Card variant="outlined" sx={{ bgcolor: '#F8FAFC', borderColor: includeParticulars ? '#818CF8' : '#E2E8F0' }}>
           <CardContent>
             <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
               <Box display="flex" alignItems="center" gap={1}>
-                <PostAddIcon sx={{ color: '#0284C7' }} />
+                <PostAddIcon sx={{ color: '#4F46E5' }} />
                 <div>
                   <Typography variant="subtitle1" fontWeight={700} color="#1E293B">
                     Particulars / Bill Summary (Optional - Page 2 Annexure)
@@ -781,7 +803,7 @@ export default function CreateBillPage() {
             size="small"
             onClick={handleSaveBill}
             disabled={saving || Boolean(readOnlyReason)}
-            sx={{ backgroundColor: '#0284C7' }}
+            
           >
             {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Invoice'}
           </Button>

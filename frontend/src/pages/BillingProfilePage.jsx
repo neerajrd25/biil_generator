@@ -8,6 +8,8 @@ import BusinessIcon from '@mui/icons-material/Business';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import TagIcon from '@mui/icons-material/Tag';
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
+import LogoUploader from '../components/LogoUploader';
+import PageHeader from '../components/PageHeader';
 import api from '../api/client';
 
 const CURRENCIES = [
@@ -29,6 +31,8 @@ export default function BillingProfilePage() {
     vendorCity: '',
     vendorState: '',
     vendorPin: '',
+    vendorWebsite: '',
+    vendorWebsite2: '',
     taxId: '',
     defaultCurrency: 'USD',
     invoiceSettings: {
@@ -45,6 +49,8 @@ export default function BillingProfilePage() {
       ifscCode: '',
     },
   });
+  const [logo, setLogo] = useState(null);
+  const [logoDirty, setLogoDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
@@ -57,17 +63,19 @@ export default function BillingProfilePage() {
     try {
       const res = await api.get('/billing-profile');
       if (res.data.profile) {
+        const { logo: savedLogo, ...saved } = res.data.profile;
+        setLogo(savedLogo || null);
         setProfile((prev) => ({
           ...prev,
-          ...res.data.profile,
-          defaultCurrency: res.data.profile.defaultCurrency || 'USD',
+          ...saved,
+          defaultCurrency: saved.defaultCurrency || 'USD',
           invoiceSettings: {
             ...prev.invoiceSettings,
-            ...(res.data.profile.invoiceSettings || {}),
+            ...(saved.invoiceSettings || {}),
           },
           accountDetail: {
             ...prev.accountDetail,
-            ...(res.data.profile.accountDetail || {}),
+            ...(saved.accountDetail || {}),
           },
         }));
       }
@@ -126,7 +134,9 @@ export default function BillingProfilePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/billing-profile', profile);
+      // The logo is only sent when it changed, so unrelated saves don't re-upload the image.
+      await api.post('/billing-profile', logoDirty ? { ...profile, logo } : profile);
+      setLogoDirty(false);
       setToast({ open: true, message: 'Billing profile & invoice settings updated successfully!', severity: 'success' });
     } catch (err) {
       setToast({ open: true, message: err.response?.data?.message || 'Failed to save profile', severity: 'error' });
@@ -145,20 +155,20 @@ export default function BillingProfilePage() {
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      <Paper elevation={2} sx={{ p: 4, borderRadius: 2 }}>
-        <Box display="flex" alignItems="center" gap={1.5} mb={3}>
-          <BusinessIcon sx={{ color: '#0284C7', fontSize: 32 }} />
-          <div>
-            <Typography variant="h5" fontWeight={700}>
-              Billing Profile (Bill From)
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Configure your business details, default currency, and automatic invoice number sequence.
-            </Typography>
-          </div>
-        </Box>
-
+      <PageHeader
+        icon={<BusinessIcon />}
+        title="Billing Profile (Bill From)"
+        subtitle="Your business details, logo, default currency, and automatic invoice number sequence."
+      />
+      <Paper elevation={2} sx={{ p: { xs: 2, sm: 4 } }}>
         <form onSubmit={handleSubmit}>
+          <Typography variant="subtitle1" fontWeight={600} color="#0F172A" gutterBottom>
+            Brand
+          </Typography>
+          <Box mb={3}>
+            <LogoUploader value={logo} onChange={(next) => { setLogo(next); setLogoDirty(true); }} />
+          </Box>
+
           {/* Business Details */}
           <Typography variant="subtitle1" fontWeight={600} color="#0F172A" gutterBottom>
             Business Details
@@ -238,13 +248,33 @@ export default function BillingProfilePage() {
                 onChange={handleChange}
               />
             </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Website"
+                name="vendorWebsite"
+                placeholder="https://www.yourbusiness.com"
+                value={profile.vendorWebsite}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Second Website (optional)"
+                name="vendorWebsite2"
+                placeholder="https://shop.yourbusiness.com"
+                value={profile.vendorWebsite2}
+                onChange={handleChange}
+              />
+            </Grid>
           </Grid>
 
           <Divider sx={{ my: 3 }} />
 
           {/* Currency Configuration */}
           <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-            <CurrencyExchangeIcon sx={{ color: '#0284C7' }} />
+            <CurrencyExchangeIcon sx={{ color: '#4F46E5' }} />
             <Typography variant="subtitle1" fontWeight={600} color="#0F172A">
               Default Currency Setup
             </Typography>
@@ -273,7 +303,7 @@ export default function BillingProfilePage() {
 
           {/* Invoice Number Generation Settings */}
           <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-            <TagIcon sx={{ color: '#0284C7' }} />
+            <TagIcon sx={{ color: '#4F46E5' }} />
             <div>
               <Typography variant="subtitle1" fontWeight={600} color="#0F172A">
                 Invoice Number Configuration
@@ -367,7 +397,7 @@ export default function BillingProfilePage() {
 
           {/* Bank Information */}
           <Box display="flex" alignItems="center" gap={1.5} mb={2}>
-            <AccountBalanceIcon sx={{ color: '#0284C7' }} />
+            <AccountBalanceIcon sx={{ color: '#4F46E5' }} />
             <Typography variant="subtitle1" fontWeight={600} color="#0F172A">
               Bank & Payment Information (Optional)
             </Typography>
@@ -418,7 +448,7 @@ export default function BillingProfilePage() {
               size="large"
               disabled={saving}
               startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <SaveIcon />}
-              sx={{ backgroundColor: '#0284C7', '&:hover': { backgroundColor: '#0369A1' } }}
+              
             >
               {saving ? 'Saving...' : 'Save Profile & Settings'}
             </Button>

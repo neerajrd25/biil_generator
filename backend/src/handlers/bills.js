@@ -13,6 +13,7 @@ import {
   isValidDateString,
   presentBill,
 } from '../services/invoiceService.js';
+import { getLogoBuffer } from '../services/brandingService.js';
 import { upsertClientFromBill } from '../services/clientService.js';
 import { createInvoicePdfBuffer } from '../services/pdfService.js';
 import { uploadPdfToGridFS, deletePdfFromGridFS } from '../services/gridFsService.js';
@@ -43,7 +44,7 @@ function getEditBlockReason(bill) {
 /** Returns the GridFS file id, or null if the PDF could not be stored (it is regenerated on demand). */
 async function storeInvoicePdf(bill, userId) {
   try {
-    const pdfBuffer = await createInvoicePdfBuffer(bill);
+    const pdfBuffer = await createInvoicePdfBuffer(bill, { logo: await getLogoBuffer(userId) });
     return await uploadPdfToGridFS({
       buffer: pdfBuffer,
       filename: `${bill.invoiceNumber}.pdf`,

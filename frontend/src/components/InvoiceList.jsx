@@ -16,7 +16,9 @@ import BlockIcon from '@mui/icons-material/Block';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../api/client';
-import { errorMessage, formatMoney } from '../utils/format';
+import { errorMessage, formatMoney, getDisplayStatus } from '../utils/format';
+
+const STRIPE = { PAID: '#10B981', PARTIALLY_PAID: '#0EA5E9', UNPAID: '#94A3B8', OVERDUE: '#EF4444', VOID: '#CBD5E1' };
 import { PaymentStatusChip, LockedChip } from './StatusChip';
 import PaymentDialog from './PaymentDialog';
 
@@ -138,7 +140,7 @@ export default function InvoiceList({ bills, loading, emptyText, onBillUpdated, 
     content = (
       <Box display="flex" flexDirection="column" gap={1.5}>
         {bills.map((bill) => (
-          <Paper key={bill._id} elevation={2} sx={{ p: 2, borderRadius: 2, opacity: isVoid(bill) ? 0.7 : 1 }}>
+          <Paper key={bill._id} elevation={2} sx={{ p: 2, opacity: isVoid(bill) ? 0.7 : 1, borderLeft: `5px solid ${STRIPE[getDisplayStatus(bill)]}` }}>
             <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={1}>
               <Box minWidth={0}>
                 <Typography fontWeight={700} color="#0F172A" noWrap>{bill.invoiceNumber}</Typography>
@@ -169,9 +171,9 @@ export default function InvoiceList({ bills, loading, emptyText, onBillUpdated, 
     );
   } else {
     content = (
-      <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2 }}>
+      <TableContainer component={Paper} elevation={2}>
         <Table>
-          <TableHead sx={{ bgcolor: '#F8FAFC' }}>
+          <TableHead sx={{ bgcolor: 'rgba(79,70,229,0.05)' }}>
             <TableRow>
               <TableCell sx={{ fontWeight: 600 }}>Invoice #</TableCell>
               <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>

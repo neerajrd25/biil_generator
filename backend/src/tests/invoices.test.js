@@ -9,6 +9,8 @@ import {
   getBalanceDue,
   presentBill,
 } from '../services/invoiceService.js';
+import { MAX_LOGO_BYTES, sanitizeLogo } from '../services/brandingService.js';
+import { createInvoicePdfBuffer } from '../services/pdfService.js';
 import { UNASSIGNED_KEY, buildClientDashboard, buildClientList, summarizeBills } from '../services/clientService.js';
 
 const TODAY = '2026-10-03';
@@ -161,4 +163,41 @@ test('client dashboard covers one client with trend, status counts and invoices'
 
   assert.equal(buildClientDashboard('nobody@x.com', bills, [], TODAY), null);
   assert.equal(buildClientDashboard(UNASSIGNED_KEY, bills, [], TODAY), null);
+});
+
+const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+test('sanitizeLogo accepts real PNG/JPEG data and rejects everything else', () => {
+  assert.deepEqual(sanitizeLogo({ mimeType: 'IMAGE/PNG', data: PNG_1X1 }), { mimeType: 'image/png', data: PNG_1X1 });
+  assert.throws(() => sanitizeLogo({ mimeType: 'image/svg+xml', data: PNG_1X1 }), /PNG or JPEG/);
+  assert.throws(() => sanitizeLogo({ mimeType: 'image/jpeg', data: PNG_1X1 }), /does not match/);
+  assert.throws(() => sanitizeLogo({ mimeType: 'image/png', data: 'not base64!' }), /not valid/);
+  const huge = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(MAX_LOGO_BYTES)]).toString('base64');
+  assert.throws(() => sanitizeLogo({ mimeType: 'image/png', data: huge }), /too large/);
+});
+
+test('invoice content keeps both vendor websites', () => {
+  const content = buildInvoiceContent(
+    {
+      lineItems: [{ name: 'Work', quantity: 1, price: 10 }],
+      billTo: { clientEmail: 'a@b.co' },
+      billFrom: { vendorWebsite: ' https://acme.com ', vendorWebsite2: 'shop.acme.com' },
+    },
+    user
+  );
+  assert.equal(content.billFrom.vendorWebsite, 'https://acme.com');
+  assert.equal(content.billFrom.vendorWebsite2, 'shop.acme.com');
+});
+
+test('PDF renders with a logo, and ignores a corrupt logo instead of failing', async () => {
+  const data = {
+    invoiceNumber: 'NV1', billDate: '2026-10-03', billFrom: { vendorName: 'Acme', vendorWebsite: 'https://acme.com', vendorWebsite2: 'https://shop.acme.com' },
+    billTo: { clientName: 'Beta' }, lineItems: [{ name: 'x', quantity: 1, price: 5, amount: 5 }], subtotal: 5, total: 5,
+    particulars: [{ srNo: 1, description: 'Phase 1', remarks: 'ok' }],
+  };
+  const withLogo = await createInvoicePdfBuffer(data, { logo: Buffer.from(PNG_1X1, 'base64') });
+  const corrupt = await createInvoicePdfBuffer(data, { logo: Buffer.from('garbage') });
+  const none = await createInvoicePdfBuffer(data);
+  for (const buf of [withLogo, corrupt, none]) assert.equal(buf.subarray(0, 5).toString('ascii'), '%PDF-');
+  assert.equal((withLogo.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 2);
 });

@@ -8,6 +8,15 @@ import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '../context/AuthContext';
+import { brandGradient, darkGradient } from '../theme';
+
+const ctaSx = {
+  color: '#fff',
+  fontWeight: 700,
+  backgroundImage: 'linear-gradient(135deg, #EC4899 0%, #F97316 100%)',
+  boxShadow: '0 6px 18px rgba(236,72,153,0.45)',
+  '&:hover': { backgroundImage: 'linear-gradient(135deg, #DB2777 0%, #EA580C 100%)' },
+};
 
 const NAV_LINKS = [
   { to: '/', label: 'Invoices', icon: <ReceiptLongIcon fontSize="small" />, end: true },
@@ -32,13 +41,16 @@ export default function Navbar() {
   };
 
   return (
-    <AppBar position="sticky" elevation={1} sx={{ backgroundColor: '#1E293B' }}>
+    <AppBar position="sticky" elevation={0} sx={{ background: darkGradient, borderBottom: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 30px rgba(15,23,42,0.25)' }}>
       <Container maxWidth="lg">
         <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
           <Box display="flex" alignItems="center" component={RouterLink} to="/" sx={{ textDecoration: 'none', color: '#fff' }}>
-            <ReceiptLongIcon sx={{ mr: 1.5, color: '#38BDF8', fontSize: 32 }} />
-            <Typography variant="h6" fontWeight={700} sx={{ letterSpacing: 0.5, display: { xs: 'none', sm: 'block' } }}>
-              BillGen Pro
+            <Box sx={{ mr: 1.5, width: 38, height: 38, borderRadius: 2.5, display: 'grid', placeItems: 'center', background: brandGradient, boxShadow: '0 6px 18px rgba(124,58,237,0.5)' }}>
+              <ReceiptLongIcon sx={{ color: '#fff', fontSize: 22 }} />
+            </Box>
+            <Typography variant="h6" fontWeight={800} sx={{ letterSpacing: 0.3, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1 }}>
+              BillGen
+              <Box component="span" sx={{ fontSize: 11, fontWeight: 800, px: 1, py: 0.25, borderRadius: 1.5, background: brandGradient, letterSpacing: 0.8 }}>PRO</Box>
             </Typography>
           </Box>
 
@@ -50,13 +62,7 @@ export default function Navbar() {
                   to="/create"
                   variant="contained"
                   startIcon={<AddCircleOutlineIcon />}
-                  sx={{
-                    backgroundColor: '#38BDF8',
-                    color: '#0F172A',
-                    fontWeight: 600,
-                    '&:hover': { backgroundColor: '#0284C7', color: '#fff' },
-                    textTransform: 'none',
-                  }}
+                  sx={ctaSx}
                 >
                   New Bill
                 </Button>
@@ -69,7 +75,7 @@ export default function Navbar() {
                     end={link.end}
                     color="inherit"
                     startIcon={link.icon}
-                    sx={{ textTransform: 'none', color: '#CBD5E1', '&.active': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.1)' } }}
+                    sx={{ color: '#CBD5E1', borderRadius: 999, '&:hover': { backgroundColor: 'rgba(255,255,255,0.08)' }, '&.active': { color: '#fff', backgroundColor: 'rgba(255,255,255,0.14)' } }}
                   >
                     {link.label}
                   </Button>
@@ -96,7 +102,7 @@ export default function Navbar() {
                   variant="contained"
                   size="small"
                   startIcon={<AddCircleOutlineIcon />}
-                  sx={{ backgroundColor: '#38BDF8', color: '#0F172A', fontWeight: 600, textTransform: 'none', '&:hover': { backgroundColor: '#0284C7', color: '#fff' } }}
+                  sx={ctaSx}
                 >
                   New
                 </Button>
@@ -129,7 +135,7 @@ function UserAvatar({ user }) {
   return user.picture ? (
     <Avatar src={user.picture} alt={user.name} sx={{ width: 34, height: 34 }} />
   ) : (
-    <Avatar sx={{ width: 34, height: 34, bgcolor: '#38BDF8', color: '#0F172A', fontWeight: 600 }}>
+    <Avatar sx={{ width: 34, height: 34, background: brandGradient, color: '#fff', fontWeight: 600 }}>
       {user.name ? user.name[0] : 'U'}
     </Avatar>
   );

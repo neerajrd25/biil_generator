@@ -1,6 +1,8 @@
 import { jsonResponse, errorResponse } from '../middleware/response.js';
 import { verifyGoogleTokenAndGetUser } from '../middleware/auth.js';
 import { connectToDatabase } from '../config/db.js';
+import { sanitizeLogo } from '../services/brandingService.js';
+import { ValidationError, sanitizeWebsite } from '../services/invoiceService.js';
 
 export async function handleBillingProfile(event) {
   try {
@@ -23,6 +25,8 @@ export async function handleBillingProfile(event) {
           vendorCity: '',
           vendorState: '',
           vendorPin: '',
+          vendorWebsite: '',
+          vendorWebsite2: '',
           taxId: '',
           defaultCurrency: 'USD',
           invoiceSettings: {
@@ -54,6 +58,8 @@ export async function handleBillingProfile(event) {
         vendorCity: body.vendorCity || '',
         vendorState: body.vendorState || '',
         vendorPin: body.vendorPin || '',
+        vendorWebsite: sanitizeWebsite(body.vendorWebsite),
+        vendorWebsite2: sanitizeWebsite(body.vendorWebsite2),
         taxId: body.taxId || '',
         defaultCurrency: body.defaultCurrency || 'USD',
         invoiceSettings: {
@@ -72,12 +78,17 @@ export async function handleBillingProfile(event) {
         updatedAt: now,
       };
 
+      // logo: undefined keeps the stored one, null removes it, an object replaces it.
+      const update = { $set: profileData, $setOnInsert: { userId: user.userId, createdAt: now } };
+      if (body.logo === null) {
+        update.$unset = { logo: '' };
+      } else if (body.logo !== undefined) {
+        profileData.logo = sanitizeLogo(body.logo);
+      }
+
       const result = await collection.findOneAndUpdate(
         { userId: user.userId },
-        {
-          $set: profileData,
-          $setOnInsert: { userId: user.userId, createdAt: now },
-        },
+        update,
         { upsert: true, returnDocument: 'after' }
       );
 
@@ -90,6 +101,9 @@ export async function handleBillingProfile(event) {
 
     return errorResponse(405, `Method ${method} not allowed`);
   } catch (err) {
+    if (err instanceof ValidationError) {
+      return errorResponse(400, err.message);
+    }
     console.error('handleBillingProfile error:', err);
     const isAuthError = err.message && (err.message.includes('Unauthorized') || err.message.includes('Google Token'));
     return errorResponse(isAuthError ? 401 : 500, err.message || 'Failed to process billing profile', err);

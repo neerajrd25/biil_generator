@@ -5,10 +5,18 @@ import { getCurrencyDetails } from './billCalculationService.js';
  * Generate PDF buffer from invoice data.
  * Pure in-memory streaming, perfectly suited for AWS Lambda memory execution without native browser dependencies.
  */
-export async function createInvoicePdfBuffer(billData) {
+const BRAND = '#4F46E5';
+
+const displayUrl = (url) => String(url || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
+/**
+ * `logo` is an optional PNG/JPEG Buffer. It is used in the page header, as a faint watermark
+ * behind every page, and in the footer.
+ */
+export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
       const buffers = [];
 
       doc.on('data', chunk => buffers.push(chunk));
@@ -35,16 +43,41 @@ export async function createInvoicePdfBuffer(billData) {
       const curr = getCurrencyDetails(currency);
       const symbol = curr.pdfSymbol || '$';
 
-      // Header Banner
-      doc.rect(0, 0, doc.page.width, 100).fill('#1E293B');
-      doc.fillColor('#FFFFFF').fontSize(24).font('Helvetica-Bold').text('INVOICE', 40, 36);
-      doc.fontSize(10).font('Helvetica').text(`Invoice #: ${invoiceNumber}`, 400, 36, { align: 'right' });
-      doc.text(`Date: ${billDate}`, 400, 52, { align: 'right' });
-      if (dueDate) {
-        doc.text(`Due: ${dueDate}`, 400, 68, { align: 'right' });
+      // A corrupt logo must never prevent the invoice from being generated.
+      let logoImg = null;
+      if (logo) {
+        try {
+          logoImg = doc.openImage(logo);
+        } catch (logoErr) {
+          console.warn('Ignoring unreadable logo:', logoErr.message);
+        }
       }
 
-      doc.moveDown(4);
+      const drawWatermark = () => {
+        if (!logoImg) return;
+        const box = 320;
+        doc.save();
+        doc.opacity(0.07);
+        doc.image(logoImg, (doc.page.width - box) / 2, (doc.page.height - box) / 2, { fit: [box, box], align: 'center', valign: 'center' });
+        doc.restore();
+      };
+      drawWatermark();
+      doc.on('pageAdded', drawWatermark);
+
+      const drawHeader = (title, titleSize, metaLines) => {
+        doc.rect(0, 0, doc.page.width, 6).fill(BRAND);
+        if (logoImg) {
+          doc.image(logoImg, 40, 24, { fit: [170, 56], valign: 'center' });
+        } else {
+          doc.fillColor('#0F172A').font('Helvetica-Bold').fontSize(16).text(billFrom.vendorName || 'Your Business', 40, 40, { width: 250 });
+        }
+        doc.fillColor(BRAND).font('Helvetica-Bold').fontSize(titleSize).text(title, 250, 24, { width: 305, align: 'right' });
+        doc.font('Helvetica').fontSize(10).fillColor('#475569');
+        metaLines.forEach((line, i) => doc.text(line, 250, 54 + i * 14, { width: 305, align: 'right' }));
+        doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(40, 98).lineTo(555, 98).stroke();
+      };
+
+      drawHeader('INVOICE', 26, [`Invoice #: ${invoiceNumber}`, `Date: ${billDate}`, ...(dueDate ? [`Due: ${dueDate}`] : [])]);
 
       // Section: Bill From and Bill To
       const startY = 120;
@@ -54,6 +87,9 @@ export async function createInvoicePdfBuffer(billData) {
       doc.text(billFrom.vendorName || 'Your Business Name', 40, currentY);
       currentY += 13;
       if (billFrom.vendorEmail) { doc.text(billFrom.vendorEmail, 40, currentY); currentY += 13; }
+      for (const site of [billFrom.vendorWebsite, billFrom.vendorWebsite2].filter(Boolean)) {
+        doc.text(displayUrl(site), 40, currentY); currentY += 13;
+      }
       if (billFrom.vendorContact) { doc.text(billFrom.vendorContact, 40, currentY); currentY += 13; }
       if (billFrom.vendorAddress) { doc.text(billFrom.vendorAddress, 40, currentY); currentY += 13; }
       const cityStateZip = [billFrom.vendorCity, billFrom.vendorState, billFrom.vendorPin].filter(Boolean).join(', ');
@@ -154,11 +190,7 @@ export async function createInvoicePdfBuffer(billData) {
         doc.addPage();
 
         // Header for Particulars / Summary Page
-        doc.rect(0, 0, doc.page.width, 90).fill('#1E293B');
-        doc.fillColor('#FFFFFF').fontSize(20).font('Helvetica-Bold').text('PARTICULARS / BILL SUMMARY', 40, 32);
-        doc.fontSize(10).font('Helvetica').text(`Invoice #: ${invoiceNumber}`, 400, 32, { align: 'right' });
-        doc.text(`Date: ${billDate}`, 400, 48, { align: 'right' });
-        doc.text(`Page 2 of 2`, 400, 64, { align: 'right' });
+        drawHeader('PARTICULARS / SUMMARY', 16, [`Invoice #: ${invoiceNumber}`, `Date: ${billDate}`]);
 
         // Meta info
         doc.fillColor('#475569').fontSize(10).font('Helvetica-Bold').text(`Client: ${billTo.clientName || 'N/A'}`, 40, 110);
@@ -200,6 +232,30 @@ export async function createInvoicePdfBuffer(billData) {
           partY + 16,
           { align: 'center', width: 515 }
         );
+      }
+
+      // Footer on every page: logo + business name, websites, page number.
+      const { start, count } = doc.bufferedPageRange();
+      for (let i = 0; i < count; i++) {
+        doc.switchToPage(start + i);
+        // Zero bottom margin so footer text near the page edge doesn't trigger an automatic new page.
+        doc.page.margins.bottom = 0;
+        const y = doc.page.height - 42;
+        doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(40, y - 8).lineTo(555, y - 8).stroke();
+
+        let nameX = 40;
+        if (logoImg) {
+          doc.image(logoImg, 40, y - 3, { fit: [60, 24], valign: 'center' });
+          nameX = 108;
+        }
+        doc.font('Helvetica-Bold').fontSize(8).fillColor('#334155')
+          .text(billFrom.vendorName || '', nameX, y + 4, { width: 165 - (nameX - 40), height: 10, ellipsis: true });
+
+        const sites = [billFrom.vendorWebsite, billFrom.vendorWebsite2].filter(Boolean).map(displayUrl).join('   |   ');
+        doc.font('Helvetica').fontSize(8).fillColor(BRAND)
+          .text(sites || billFrom.vendorEmail || '', 215, y + 4, { width: 235, height: 10, align: 'center', ellipsis: true });
+
+        doc.fillColor('#94A3B8').text(`Page ${i + 1} of ${count}`, 455, y + 4, { width: 100, height: 10, align: 'right' });
       }
 
       doc.end();

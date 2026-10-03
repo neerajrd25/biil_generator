@@ -30,7 +30,8 @@ A modern, production-ready invoice and bill generator with serverless backend ar
 9. **Edit & Lock Invoices**: Edit an invoice while it is unlocked (its stored PDF is regenerated). *Locking* freezes an invoice so it can't be edited or deleted; payments can still be recorded. Lock one invoice, or lock everything dated up to a chosen date ("Lock period"). Unlock if you really need to change it. To cancel a locked invoice while keeping the record, **void** it.
 10. **Payments & Status**: Record the amount received per invoice. Status is Unpaid / Partially paid / Paid / Void, and *Overdue* is flagged automatically from the due date.
 11. **Client Dashboard**: `/clients` lists every client with billed / collected / outstanding totals; opening a client shows totals per currency (currencies are never added together), overdue ageing, a 12-month billed-vs-collected chart and their invoices. Invoices created before emails were required appear under "No email on file" until you edit them.
-12. **Responsive UI**: Navigation collapses into a menu and invoice tables become cards on small screens.
+12. **Branding**: Upload your logo and up to two website addresses in the Billing Profile. The logo appears in the PDF header, as a faint watermark on every page and in the footer (with your websites and page numbers). PNG, JPG, WebP and SVG uploads are accepted and converted to a PDF-safe PNG/JPEG in the browser (max ~1 MB stored).
+13. **Responsive UI**: Navigation collapses into a menu and invoice tables become cards on small screens.
 
 ### Invoice API additions
 

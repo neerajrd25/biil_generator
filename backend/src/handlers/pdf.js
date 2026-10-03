@@ -3,6 +3,7 @@ import { verifyGoogleTokenAndGetUser } from '../middleware/auth.js';
 import { connectToDatabase } from '../config/db.js';
 import { createInvoicePdfBuffer } from '../services/pdfService.js';
 import { getPdfFromGridFS, uploadPdfToGridFS } from '../services/gridFsService.js';
+import { getLogoBuffer } from '../services/brandingService.js';
 import { calculateBillTotals } from '../services/billCalculationService.js';
 import { ObjectId } from 'mongodb';
 
@@ -25,7 +26,7 @@ export async function handlePdf(event) {
         invoiceNumber: body.invoiceNumber || 'PREVIEW',
       };
 
-      const pdfBuffer = await createInvoicePdfBuffer(billData);
+      const pdfBuffer = await createInvoicePdfBuffer(billData, { logo: await getLogoBuffer(user.userId) });
       return binaryResponse(200, pdfBuffer, 'application/pdf', `${billData.invoiceNumber}.pdf`);
     }
 
@@ -67,7 +68,7 @@ export async function handlePdf(event) {
       }
 
       // If PDF wasn't stored or needs regeneration
-      const pdfBuffer = await createInvoicePdfBuffer(bill);
+      const pdfBuffer = await createInvoicePdfBuffer(bill, { logo: await getLogoBuffer(user.userId) });
       return binaryResponse(200, pdfBuffer, 'application/pdf', `${bill.invoiceNumber}.pdf`);
     }
 

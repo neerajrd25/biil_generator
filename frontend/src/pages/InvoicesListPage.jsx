@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container, Typography, Box, Button, TextField, InputAdornment, Dialog, DialogTitle,
+  Container, Box, Button, TextField, InputAdornment, Dialog, DialogTitle,
   DialogContent, DialogActions, DialogContentText, Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import LockClockIcon from '@mui/icons-material/LockClock';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PageHeader from '../components/PageHeader';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../api/client';
 import InvoiceList from '../components/InvoiceList';
@@ -55,30 +57,21 @@ export default function InvoicesListPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 } }}>
-      <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={2} mb={3}>
-        <div>
-          <Typography variant="h5" fontWeight={700} color="#0F172A">
-            Invoices & Bills
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Edit, track payments and lock your invoices once they are final.
-          </Typography>
-        </div>
-        <Box display="flex" gap={1} flexWrap="wrap">
-          <Button variant="outlined" startIcon={<LockClockIcon />} onClick={() => setLockOpen(true)} sx={{ flex: { xs: 1, sm: 'none' } }}>
-            Lock period
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/create"
-            variant="contained"
-            startIcon={<AddIcon />}
-            sx={{ backgroundColor: '#0284C7', '&:hover': { backgroundColor: '#0369A1' }, flex: { xs: 1, sm: 'none' } }}
-          >
-            Create New Bill
-          </Button>
-        </Box>
-      </Box>
+      <PageHeader
+        icon={<ReceiptLongIcon />}
+        title="Invoices & Bills"
+        subtitle="Edit, track payments and lock your invoices once they are final."
+        actions={
+          <>
+            <Button variant="outlined" startIcon={<LockClockIcon />} onClick={() => setLockOpen(true)} sx={{ flex: { xs: 1, sm: 'none' } }}>
+              Lock period
+            </Button>
+            <Button component={RouterLink} to="/create" variant="contained" startIcon={<AddIcon />} sx={{ flex: { xs: 1, sm: 'none' } }}>
+              Create New Bill
+            </Button>
+          </>
+        }
+      />
 
       <Box mb={3}>
         <TextField

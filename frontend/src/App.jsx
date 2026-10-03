@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
@@ -11,10 +11,11 @@ import ClientDashboardPage from './pages/ClientDashboardPage';
 import { Box } from '@mui/material';
 
 export default function App() {
+  const location = useLocation();
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: '#F8FAFC' }}>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'transparent' }}>
       <Navbar />
-      <Box sx={{ flexGrow: 1 }}>
+      <Box key={location.pathname} className="fade-in" sx={{ flexGrow: 1 }}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>

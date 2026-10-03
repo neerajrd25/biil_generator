@@ -19,6 +19,8 @@ export class ValidationError extends Error {
 
 export const round2 = (n) => Number((Number(n) || 0).toFixed(2));
 
+export const sanitizeWebsite = (value) => String(value ?? '').trim().slice(0, 200);
+
 export const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 export const isValidEmail = (email) => EMAIL_PATTERN.test(normalizeEmail(email));
@@ -148,6 +150,8 @@ export function buildInvoiceContent(body, user) {
       vendorCity: billFrom.vendorCity || '',
       vendorState: billFrom.vendorState || '',
       vendorPin: billFrom.vendorPin || '',
+      vendorWebsite: sanitizeWebsite(billFrom.vendorWebsite),
+      vendorWebsite2: sanitizeWebsite(billFrom.vendorWebsite2),
       taxId: billFrom.taxId || '',
     },
     billTo: {
