@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage';
 import BillingProfilePage from './pages/BillingProfilePage';
 import CreateBillPage from './pages/CreateBillPage';
 import InvoicesListPage from './pages/InvoicesListPage';
+import ClientsPage from './pages/ClientsPage';
+import ClientDashboardPage from './pages/ClientDashboardPage';
 import { Box } from '@mui/material';
 
 export default function App() {
@@ -19,6 +21,9 @@ export default function App() {
             <Route path="/" element={<InvoicesListPage />} />
             <Route path="/profile" element={<BillingProfilePage />} />
             <Route path="/create" element={<CreateBillPage />} />
+            <Route path="/edit/:id" element={<CreateBillPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/clients/:email" element={<ClientDashboardPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -1,6 +1,8 @@
 import { jsonResponse, errorResponse } from '../middleware/response.js';
 import { verifyGoogleTokenAndGetUser } from '../middleware/auth.js';
 import { connectToDatabase } from '../config/db.js';
+import { buildClientDashboard, buildClientList } from '../services/clientService.js';
+import { isValidEmail, normalizeEmail } from '../services/invoiceService.js';
 import { ObjectId } from 'mongodb';
 
 export async function handleClients(event) {
@@ -12,12 +14,27 @@ export async function handleClients(event) {
 
     const method = event.httpMethod || event.requestContext?.http?.method || 'GET';
 
+    const rawPath = event.rawPath || event.path || '';
+
     if (method === 'GET') {
-      const clients = await collection.find({ userId: user.userId }).sort({ clientName: 1 }).toArray();
-      return jsonResponse(200, {
-        success: true,
-        clients,
-      });
+      const bills = await db.collection('bills').find({ userId: user.userId }).toArray();
+      const savedClients = await collection.find({ userId: user.userId }).toArray();
+
+      // GET /clients/dashboard?email=... -> financial dashboard for one client
+      if (rawPath.endsWith('/dashboard')) {
+        const email = event.queryStringParameters?.email;
+        if (email === undefined || email === '') {
+          return errorResponse(400, 'Client email is required');
+        }
+        const dashboard = buildClientDashboard(email, bills, savedClients);
+        if (!dashboard) {
+          return errorResponse(404, 'Client not found');
+        }
+        return jsonResponse(200, { success: true, ...dashboard });
+      }
+
+      // GET /clients -> every client with their money totals
+      return jsonResponse(200, { success: true, ...buildClientList(bills, savedClients) });
     }
 
     if (method === 'POST') {
@@ -25,11 +42,18 @@ export async function handleClients(event) {
       if (!body.clientName) {
         return errorResponse(400, 'Client name is required');
       }
+      const clientEmail = normalizeEmail(body.clientEmail);
+      if (!isValidEmail(clientEmail)) {
+        return errorResponse(400, 'A valid client email is required');
+      }
+      if (await collection.findOne({ userId: user.userId, clientEmail })) {
+        return errorResponse(409, 'A client with this email already exists');
+      }
 
       const clientDoc = {
         userId: user.userId,
         clientName: body.clientName,
-        clientEmail: body.clientEmail || '',
+        clientEmail,
         clientContact: body.clientContact || '',
         clientAddress: body.clientAddress || '',
         clientCity: body.clientCity || '',
@@ -39,7 +63,13 @@ export async function handleClients(event) {
         updatedAt: new Date(),
       };
 
-      const result = await collection.insertOne(clientDoc);
+      let result;
+      try {
+        result = await collection.insertOne(clientDoc);
+      } catch (err) {
+        if (err?.code === 11000) return errorResponse(409, 'A client with this email already exists');
+        throw err;
+      }
       return jsonResponse(201, {
         success: true,
         message: 'Client created successfully',
@@ -48,7 +78,6 @@ export async function handleClients(event) {
     }
 
     if (method === 'DELETE') {
-      const rawPath = event.rawPath || event.path || '';
       let clientId = event.pathParameters?.id || event.queryStringParameters?.id;
       if (!clientId && rawPath) {
         const match = rawPath.match(/\/clients\/([^/]+)/);

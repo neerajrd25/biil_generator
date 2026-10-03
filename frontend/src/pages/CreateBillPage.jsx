@@ -3,30 +3,27 @@ import {
   Container, Paper, Typography, Grid, TextField, Button, Box,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   IconButton, Divider, Dialog, DialogTitle, DialogContent, DialogActions,
-  CircularProgress, Alert, Autocomplete, MenuItem, FormControlLabel, Switch, Card, CardContent
+  CircularProgress, Alert, Autocomplete, MenuItem, FormControlLabel, Switch, Card, CardContent, useMediaQuery
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import PostAddIcon from '@mui/icons-material/PostAdd';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import LockIcon from '@mui/icons-material/Lock';
 import api from '../api/client';
-
-const CURRENCIES = [
-  { code: 'USD', label: 'US Dollar ($ - USD)', symbol: '$' },
-  { code: 'INR', label: 'Indian Rupee (₹ - INR)', symbol: '₹' },
-  { code: 'EUR', label: 'Euro (€ - EUR)', symbol: '€' },
-  { code: 'GBP', label: 'British Pound (£ - GBP)', symbol: '£' },
-  { code: 'CAD', label: 'Canadian Dollar (CA$ - CAD)', symbol: 'CA$' },
-  { code: 'AUD', label: 'Australian Dollar (AU$ - AUD)', symbol: 'AU$' },
-  { code: 'AED', label: 'UAE Dirham (AED)', symbol: 'AED' },
-];
+import { CURRENCIES, errorMessage } from '../utils/format';
 
 export default function CreateBillPage() {
   const navigate = useNavigate();
+  const { id: editingId } = useParams();
+  const [searchParams] = useSearchParams();
+  const isEditing = Boolean(editingId);
+  const fullScreenPreview = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
   // State
+  const [readOnlyReason, setReadOnlyReason] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -92,13 +89,18 @@ export default function CreateBillPage() {
 
   const loadInitialData = async () => {
     try {
-      const [profileRes, clientsRes, nextNumberRes] = await Promise.all([
+      const [profileRes, clientsRes, nextNumberRes, billRes] = await Promise.all([
         api.get('/billing-profile'),
         api.get('/clients'),
-        api.get('/bills/next-number').catch(() => ({ data: { nextInvoiceNumber: '' } })),
+        isEditing
+          ? Promise.resolve({ data: { nextInvoiceNumber: '' } })
+          : api.get('/bills/next-number').catch(() => ({ data: { nextInvoiceNumber: '' } })),
+        isEditing ? api.get(`/bills/${editingId}`) : Promise.resolve(null),
       ]);
 
-      if (profileRes.data.profile) {
+      if (billRes) {
+        loadExistingBill(billRes.data.bill);
+      } else if (profileRes.data.profile) {
         const p = profileRes.data.profile;
         if (p.defaultCurrency) {
           setCurrency(p.defaultCurrency);
@@ -118,8 +120,13 @@ export default function CreateBillPage() {
         }
       }
 
-      if (clientsRes.data.clients) {
-        setClients(clientsRes.data.clients);
+      const savedClients = (clientsRes.data.clients || []).filter((c) => !c.isUnassigned);
+      setClients(savedClients);
+
+      const presetEmail = searchParams.get('client');
+      if (!isEditing && presetEmail) {
+        const preset = savedClients.find((c) => c.clientEmail === presetEmail.toLowerCase());
+        if (preset) handleClientSelect(preset);
       }
 
       if (nextNumberRes.data.nextInvoiceNumber) {
@@ -127,8 +134,31 @@ export default function CreateBillPage() {
       }
     } catch (err) {
       console.warn('Initial data load error:', err);
+      if (isEditing) setError(errorMessage(err, 'Failed to load the invoice for editing'));
     } finally {
       setLoadingProfile(false);
+    }
+  };
+
+  const loadExistingBill = (bill) => {
+    if (bill.isLocked || bill.paymentStatus === 'VOID') {
+      setReadOnlyReason(bill.paymentStatus === 'VOID' ? 'This invoice is void and cannot be edited.' : 'This invoice is locked. Unlock it from the invoices list to make changes.');
+    }
+    setCurrency(bill.currency || 'USD');
+    setBillFrom((prev) => ({ ...prev, ...bill.billFrom }));
+    setBillTo((prev) => ({ ...prev, ...bill.billTo }));
+    setAccountDetail((prev) => ({ ...prev, ...bill.accountDetail }));
+    setInvoiceMeta({
+      invoiceNumber: bill.invoiceNumber || '',
+      billDate: bill.billDate || '',
+      dueDate: bill.dueDate || '',
+      taxRate: bill.taxRate || 0,
+      notes: bill.notes || '',
+    });
+    setLineItems(bill.lineItems.map((item, i) => ({ id: item.id || i + 1, name: item.name, quantity: item.quantity, price: item.price })));
+    if (bill.particulars?.length) {
+      setIncludeParticulars(true);
+      setParticulars(bill.particulars.map((p, i) => ({ srNo: p.srNo || i + 1, description: p.description, remarks: p.remarks })));
     }
   };
 
@@ -226,16 +256,23 @@ export default function CreateBillPage() {
   };
 
   const handleSaveBill = async () => {
+    if (readOnlyReason) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billTo.clientEmail.trim())) {
+      setPreviewOpen(false);
+      setError('A valid client email is required - it identifies the client on their dashboard.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const payload = buildPayload();
-      const res = await api.post('/bills', payload);
+      const res = isEditing ? await api.put(`/bills/${editingId}`, payload) : await api.post('/bills', payload);
       if (res.data.success) {
         navigate('/');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save bill & PDF into MongoDB');
+      setPreviewOpen(false);
+      setError(errorMessage(err, 'Failed to save bill & PDF'));
     } finally {
       setSaving(false);
     }
@@ -251,17 +288,19 @@ export default function CreateBillPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Paper elevation={2} sx={{ p: 4, borderRadius: 2 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Paper elevation={2} sx={{ p: { xs: 2, sm: 4 }, borderRadius: 2 }}>
+        <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} flexDirection={{ xs: 'column', md: 'row' }} gap={2} mb={3}>
           <div>
             <Typography variant="h5" fontWeight={700}>
-              Create New Invoice
+              {isEditing ? `Edit Invoice ${invoiceMeta.invoiceNumber}` : 'Create New Invoice'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Fill in client and invoice details, preview the PDF, and store it directly in MongoDB.
+              {isEditing
+                ? 'Update the details and save - the stored PDF is regenerated automatically.'
+                : 'Fill in client and invoice details, preview the PDF, and store it directly in MongoDB.'}
             </Typography>
           </div>
-          <Box display="flex" gap={1.5}>
+          <Box display="flex" gap={1.5} flexWrap="wrap">
             <Button
               variant="outlined"
               startIcon={<VisibilityIcon />}
@@ -273,28 +312,34 @@ export default function CreateBillPage() {
               variant="contained"
               startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircleOutlineIcon />}
               onClick={handleSaveBill}
-              disabled={saving}
+              disabled={saving || Boolean(readOnlyReason)}
               sx={{ backgroundColor: '#0284C7', '&:hover': { backgroundColor: '#0369A1' } }}
             >
-              {saving ? 'Generating & Storing...' : 'Generate & Store Bill'}
+              {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Generate & Store Bill'}
             </Button>
           </Box>
         </Box>
 
+        {readOnlyReason && (
+          <Alert severity="warning" icon={<LockIcon fontSize="inherit" />} sx={{ mb: 3 }} action={<Button color="inherit" size="small" component={RouterLink} to="/">Back</Button>}>
+            {readOnlyReason}
+          </Alert>
+        )}
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
         {/* Invoice Metadata and Currency Row */}
         <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               label="Invoice Number"
               value={invoiceMeta.invoiceNumber}
               onChange={(e) => setInvoiceMeta({ ...invoiceMeta, invoiceNumber: e.target.value })}
-              helperText="Auto-sequenced from profile settings"
+              disabled={isEditing}
+              helperText={isEditing ? 'Invoice numbers cannot change after creation' : 'Auto-sequenced from profile settings'}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               select
               fullWidth
@@ -310,7 +355,7 @@ export default function CreateBillPage() {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               type="date"
@@ -320,7 +365,7 @@ export default function CreateBillPage() {
               onChange={(e) => setInvoiceMeta({ ...invoiceMeta, billDate: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} sm={3}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               type="date"
@@ -353,7 +398,7 @@ export default function CreateBillPage() {
                     required
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     size="small"
@@ -362,7 +407,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillFrom({ ...billFrom, vendorEmail: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     size="small"
@@ -380,7 +425,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillFrom({ ...billFrom, vendorAddress: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -389,7 +434,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillFrom({ ...billFrom, vendorCity: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -398,7 +443,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillFrom({ ...billFrom, vendorState: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -414,17 +459,27 @@ export default function CreateBillPage() {
           {/* Bill To (Recipient) */}
           <Grid item xs={12} md={6}>
             <Box bgcolor="#F8FAFC" p={2.5} borderRadius={2} border="1px solid #E2E8F0">
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={1.5}>
+              <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={1} mb={1.5}>
                 <Typography variant="subtitle1" fontWeight={700} color="#1E293B">
                   Bill To (Client / Recipient)
                 </Typography>
-                {clients.length > 0 && (
+                {clients.length > 0 && !isEditing && (
                   <Autocomplete
                     options={clients}
                     getOptionLabel={(option) => option.clientName || ''}
+                    isOptionEqualToValue={(option, val) => option.key === val.key}
+                    renderOption={(props, option) => (
+                      <li {...props} key={option.key}>
+                        <div>
+                          <Typography variant="body2">{option.clientName}</Typography>
+                          <Typography variant="caption" color="text.secondary">{option.clientEmail}</Typography>
+                        </div>
+                      </li>
+                    )}
                     value={selectedClient}
                     onChange={(_, val) => handleClientSelect(val)}
-                    renderInput={(params) => <TextField {...params} size="small" placeholder="Select Saved Client" sx={{ width: 180 }} />}
+                    renderInput={(params) => <TextField {...params} size="small" placeholder="Select Saved Client" />}
+                    sx={{ width: { xs: '100%', sm: 200 } }}
                   />
                 )}
               </Box>
@@ -439,16 +494,19 @@ export default function CreateBillPage() {
                     required
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     size="small"
                     label="Client Email"
+                    type="email"
+                    required
+                    helperText="Identifies the client"
                     value={billTo.clientEmail}
                     onChange={(e) => setBillTo({ ...billTo, clientEmail: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
                     size="small"
@@ -466,7 +524,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillTo({ ...billTo, clientAddress: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -475,7 +533,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillTo({ ...billTo, clientCity: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -484,7 +542,7 @@ export default function CreateBillPage() {
                     onChange={(e) => setBillTo({ ...billTo, clientState: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={4}>
+                <Grid item xs={12} sm={4}>
                   <TextField
                     fullWidth
                     size="small"
@@ -624,7 +682,7 @@ export default function CreateBillPage() {
         {/* Optional Particulars / Bill Summary (Always Next Page) */}
         <Card variant="outlined" sx={{ bgcolor: '#F8FAFC', borderColor: includeParticulars ? '#38BDF8' : '#E2E8F0' }}>
           <CardContent>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
               <Box display="flex" alignItems="center" gap={1}>
                 <PostAddIcon sx={{ color: '#0284C7' }} />
                 <div>
@@ -715,17 +773,17 @@ export default function CreateBillPage() {
       </Paper>
 
       {/* PDF Live Preview Dialog */}
-      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth fullScreen={fullScreenPreview}>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Invoice Preview ({currency})</span>
           <Button
             variant="contained"
             size="small"
             onClick={handleSaveBill}
-            disabled={saving}
+            disabled={saving || Boolean(readOnlyReason)}
             sx={{ backgroundColor: '#0284C7' }}
           >
-            {saving ? 'Saving...' : 'Save to MongoDB'}
+            {saving ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Invoice'}
           </Button>
         </DialogTitle>
         <DialogContent dividers sx={{ minHeight: 480, p: 0 }}>

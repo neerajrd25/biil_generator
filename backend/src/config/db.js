@@ -32,6 +32,11 @@ export async function connectToDatabase() {
     db.collection('users').createIndex({ googleId: 1 }, { unique: true }),
     db.collection('billing_profiles').createIndex({ userId: 1 }),
     db.collection('clients').createIndex({ userId: 1, clientName: 1 }),
+    // Email identifies a client; legacy rows without an email are excluded from uniqueness.
+    db.collection('clients').createIndex(
+      { userId: 1, clientEmail: 1 },
+      { unique: true, partialFilterExpression: { clientEmail: { $gt: '' } } }
+    ),
     db.collection('bills').createIndex({ userId: 1, invoiceNumber: 1 }),
     db.collection('bills').createIndex({ userId: 1, createdAt: -1 })
   ]).catch(err => console.warn('Indexes warning:', err.message));

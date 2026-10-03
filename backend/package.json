@@ -5,7 +5,7 @@
   "main": "src/handlers/index.js",
   "type": "module",
   "scripts": {
-    "dev": "node dev-server.js",
+    "dev": "node --watch dev-server.js",
     "start": "node dev-server.js",
     "test": "node --test src/tests/**/*.test.js"
   },

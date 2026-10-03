@@ -24,12 +24,12 @@ const server = http.createServer(async (req, res) => {
       pathParameters.id = pdfMatch[1];
     } else {
       const billMatch = url.pathname.match(/^\/bills\/([^/]+)$/);
-      if (billMatch && billMatch[1] !== 'next-number' && billMatch[1] !== 'preview') {
+      if (billMatch && !['next-number', 'preview', 'lock-period'].includes(billMatch[1])) {
         pathParameters.id = billMatch[1];
       }
     }
     const clientMatch = url.pathname.match(/^\/clients\/([^/]+)$/);
-    if (clientMatch) {
+    if (clientMatch && clientMatch[1] !== 'dashboard') {
       pathParameters.id = clientMatch[1];
     }
 
