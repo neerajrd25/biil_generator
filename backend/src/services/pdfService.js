@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { getCurrencyDetails } from './billCalculationService.js';
+import { normalizeAnnexure, parseNumber } from './annexureService.js';
 
 /**
  * Generate PDF buffer from invoice data.
@@ -16,7 +17,7 @@ const displayUrl = (url) => String(url || '').replace(/^https?:\/\//i, '').repla
 export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
+      const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true, info: { Title: String(billData.invoiceNumber || 'Invoice'), Author: billData.billFrom?.vendorName || undefined } });
       const buffers = [];
 
       doc.on('data', chunk => buffers.push(chunk));
@@ -169,6 +170,7 @@ export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
         doc.font('Helvetica').fontSize(8).fillColor('#64748B');
         let bankY = notesY + 14;
         if (accountDetail.bankName) { doc.text(`Bank: ${accountDetail.bankName}`, 40, bankY); bankY += 11; }
+        if (accountDetail.bankBranch) { doc.text(`Branch: ${accountDetail.bankBranch}`, 40, bankY); bankY += 11; }
         if (accountDetail.accountHolder) { doc.text(`Account Name: ${accountDetail.accountHolder}`, 40, bankY); bankY += 11; }
         if (accountDetail.accountNumber) { doc.text(`Account #: ${accountDetail.accountNumber}`, 40, bankY); bankY += 11; }
         if (accountDetail.ifscCode) { doc.text(`IFSC/Routing: ${accountDetail.ifscCode}`, 40, bankY); bankY += 11; }
@@ -182,57 +184,10 @@ export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
       }
 
       // -------------------------------------------------------------
-      // Optional Particulars / Bill Summary (Always rendered on NEXT page)
+      // Optional Annexure (table or free text). Always starts on a new page and flows across pages.
       // -------------------------------------------------------------
-      const validParticulars = Array.isArray(particulars) ? particulars.filter(p => p.description && p.description.trim() !== '') : [];
-
-      if (validParticulars.length > 0) {
-        doc.addPage();
-
-        // Header for Particulars / Summary Page
-        drawHeader('PARTICULARS / SUMMARY', 16, [`Invoice #: ${invoiceNumber}`, `Date: ${billDate}`]);
-
-        // Meta info
-        doc.fillColor('#475569').fontSize(10).font('Helvetica-Bold').text(`Client: ${billTo.clientName || 'N/A'}`, 40, 110);
-        doc.font('Helvetica').fontSize(9).fillColor('#64748B').text('Detailed scope of work, deliverables, and itemized particulars corresponding to the invoice.', 40, 126);
-
-        // Particulars Table Header
-        const partTableTop = 150;
-        doc.rect(40, partTableTop, 515, 24).fill('#F1F5F9');
-        doc.fillColor('#1E293B').font('Helvetica-Bold').fontSize(9);
-        doc.text('SR NO.', 45, partTableTop + 7, { width: 45, align: 'center' });
-        doc.text('PARTICULARS / DESCRIPTION', 105, partTableTop + 7, { width: 320 });
-        doc.text('DETAILS / REMARKS', 435, partTableTop + 7, { width: 110 });
-
-        let partY = partTableTop + 28;
-        doc.font('Helvetica').fontSize(9).fillColor('#334155');
-
-        validParticulars.forEach((item, pIdx) => {
-          if (pIdx % 2 === 1) {
-            doc.rect(40, partY - 3, 515, 24).fill('#F8FAFC');
-            doc.fillColor('#334155');
-          }
-
-          const sr = item.srNo || String(pIdx + 1);
-          const desc = item.description || '';
-          const remarks = item.remarks || item.details || '-';
-
-          doc.text(String(sr), 45, partY, { width: 45, align: 'center' });
-          doc.text(desc, 105, partY, { width: 320 });
-          doc.text(remarks, 435, partY, { width: 110 });
-
-          partY += 24;
-        });
-
-        // Bottom footer note
-        doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(40, partY + 5).lineTo(555, partY + 5).stroke();
-        doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94A3B8').text(
-          'This Annexure forms an integral part of the primary invoice document.',
-          40,
-          partY + 16,
-          { align: 'center', width: 515 }
-        );
-      }
+      const annexure = normalizeAnnexure(billData.annexure, particulars);
+      if (annexure) drawAnnexure(doc, annexure, { drawHeader, invoiceNumber, billDate, clientName: billTo.clientName });
 
       // Footer on every page: logo + business name, websites, page number.
       const { start, count } = doc.bufferedPageRange();
@@ -241,6 +196,8 @@ export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
         // Zero bottom margin so footer text near the page edge doesn't trigger an automatic new page.
         doc.page.margins.bottom = 0;
         const y = doc.page.height - 42;
+        doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94A3B8')
+          .text('This is a computer-generated invoice and does not require a physical signature.', 40, y - 24, { width: 515, height: 10, align: 'center' });
         doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(40, y - 8).lineTo(555, y - 8).stroke();
 
         let nameX = 40;
@@ -267,4 +224,117 @@ export async function createInvoicePdfBuffer(billData, { logo = null } = {}) {
 
 function clientPinOrBlank(pin) {
   return pin ? String(pin) : '';
+}
+
+// Content on annexure pages must stay above the footer (note + divider + page number).
+const ANNEXURE_BOTTOM = 760;
+const ANNEXURE_TOP = 150;
+
+function drawAnnexure(doc, annexure, { drawHeader, invoiceNumber, billDate, clientName }) {
+  const title = annexure.title.toUpperCase();
+  const meta = [`Invoice #: ${invoiceNumber}`, `Date: ${billDate}`];
+
+  const startPage = (continued) => {
+    doc.addPage();
+    drawHeader(continued ? `${title} (CONT.)` : title, 16, meta);
+    if (!continued) {
+      doc.fillColor('#475569').fontSize(10).font('Helvetica-Bold').text(`Client: ${clientName || 'N/A'}`, 40, 110, { width: 515 });
+      doc.font('Helvetica').fontSize(9).fillColor('#64748B').text('Detailed scope of work, deliverables, and itemized particulars corresponding to the invoice.', 40, 126, { width: 515 });
+    }
+    return continued ? 112 : ANNEXURE_TOP;
+  };
+
+  let y = startPage(false);
+  if (annexure.mode === 'text') {
+    y = drawAnnexureText(doc, annexure.text, y, () => startPage(true));
+  } else {
+    y = drawAnnexureTable(doc, annexure, y, () => startPage(true));
+  }
+
+  if (y + 30 > ANNEXURE_BOTTOM) y = startPage(true);
+  doc.strokeColor('#E2E8F0').lineWidth(1).moveTo(40, y + 5).lineTo(555, y + 5).stroke();
+  doc.font('Helvetica-Oblique').fontSize(8).fillColor('#94A3B8').text(
+    'This Annexure forms an integral part of the primary invoice document.',
+    40, y + 16, { align: 'center', width: 515 }
+  );
+}
+
+function drawAnnexureTable(doc, { columns, rows }, startY, newPage) {
+  const TABLE_X = 40;
+  const TABLE_W = 515;
+  const PAD = 5;
+  const MIN_W = 45;
+
+  // Column widths proportional to the longest content (clamped), so Date/Hours stay narrow and Description wide.
+  const weights = columns.map((c, i) => Math.min(45, Math.max(6, c.label.length, ...rows.map((r) => r[i].length))));
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+  let widths = weights.map((w) => Math.max(MIN_W, (w / weightSum) * TABLE_W));
+  const scale = TABLE_W / widths.reduce((a, b) => a + b, 0);
+  widths = widths.map((w) => w * scale);
+  const xs = widths.map((_, i) => TABLE_X + widths.slice(0, i).reduce((a, b) => a + b, 0));
+
+  const drawRow = (cells, y, height, { bold = false, fill = null } = {}) => {
+    if (fill) doc.rect(TABLE_X, y, TABLE_W, height).fill(fill);
+    doc.fillColor(bold ? '#1E293B' : '#334155').font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    cells.forEach((cell, i) => {
+      doc.text(cell, xs[i] + PAD, y + 5, { width: widths[i] - PAD * 2, align: columns[i].align });
+    });
+  };
+
+  const measure = (cells, bold) => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    return Math.max(...cells.map((cell, i) => doc.heightOfString(cell || ' ', { width: widths[i] - PAD * 2 }))) + 10;
+  };
+
+  const labels = columns.map((c) => c.label.toUpperCase());
+  const drawHead = (y) => {
+    const h = measure(labels, true);
+    drawRow(labels, y, h, { bold: true, fill: '#F1F5F9' });
+    return y + h;
+  };
+
+  let y = drawHead(startY);
+  rows.forEach((row, idx) => {
+    const h = measure(row, false);
+    if (y + h > ANNEXURE_BOTTOM) y = drawHead(newPage());
+    drawRow(row, y, h, { fill: idx % 2 === 1 ? '#F8FAFC' : null });
+    y += h;
+  });
+
+  // Totals row for columns flagged `total` (e.g. Hours).
+  if (columns.some((c) => c.total)) {
+    const firstPlain = columns.findIndex((c) => !c.total);
+    const cells = columns.map((c, i) => {
+      if (c.total) {
+        const sum = rows.reduce((acc, r) => acc + (parseNumber(r[i]) || 0), 0);
+        return String(Math.round(sum * 100) / 100);
+      }
+      return i === firstPlain ? 'Total' : '';
+    });
+    const h = measure(cells, true);
+    if (y + h > ANNEXURE_BOTTOM) y = drawHead(newPage());
+    drawRow(cells, y, h, { bold: true, fill: '#E2E8F0' });
+    y += h;
+  }
+  return y;
+}
+
+// Free text: blank line = paragraph gap, lines starting "- " / "* " / "\u2022 " are bullets.
+function drawAnnexureText(doc, text, startY, newPage) {
+  let y = startY;
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.trimEnd();
+    if (line.trim() === '') { y += 8; continue; }
+    const bullet = /^\s*[-*\u2022]\s+/.test(line);
+    const content = bullet ? line.replace(/^\s*[-*\u2022]\s+/, '') : line;
+    const x = bullet ? 58 : 40;
+    const width = bullet ? 497 : 515;
+    doc.font('Helvetica').fontSize(10).fillColor('#334155');
+    const h = doc.heightOfString(content, { width }) + 4;
+    if (y + h > ANNEXURE_BOTTOM) y = newPage();
+    if (bullet) doc.text('\u2022', 46, y, { width: 10 });
+    doc.text(content, x, y, { width });
+    y += h;
+  }
+  return y;
 }

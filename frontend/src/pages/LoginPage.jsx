@@ -8,18 +8,23 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import BrushOutlinedIcon from '@mui/icons-material/BrushOutlined';
 import { brandGradient } from '../theme';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 
 export default function LoginPage() {
-  const { loginWithCredential } = useAuth();
+  const { user, loading, sessionMessage, loginWithCredential } = useAuth();
+  const location = useLocation();
+  const redirectTo = location.state?.from || '/';
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
+  // Already signed in (e.g. pressed Back to the login page): go straight to the app.
+  if (!loading && user) return <Navigate to={redirectTo} replace />;
 
   const handleSuccess = async (credentialResponse) => {
     try {
       if (credentialResponse.credential) {
         await loginWithCredential(credentialResponse.credential);
-        navigate('/');
+        navigate(redirectTo, { replace: true });
       }
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Google Sign-In failed');
@@ -29,7 +34,7 @@ export default function LoginPage() {
   const handleDevBypass = async () => {
     try {
       await loginWithCredential('mock-dev-token');
-      navigate('/');
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       setError('Dev login requires backend DEV_BYPASS_AUTH=true in .env');
     }
@@ -60,6 +65,12 @@ export default function LoginPage() {
           <Typography variant="body1" color="text.secondary" mb={3}>
             Beautiful invoices, clear client finances. Sign in to get started.
           </Typography>
+
+          {sessionMessage && !error && (
+            <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
+              {sessionMessage}
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 3, textAlign: 'left' }}>

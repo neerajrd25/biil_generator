@@ -21,7 +21,7 @@ export function binaryResponse(statusCode, buffer, contentType = 'application/pd
     statusCode,
     headers: {
       'Content-Type': contentType,
-      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Disposition': `inline; filename="${String(filename).replace(/[^\w.-]+/g, '_')}"`,
       ...DEFAULT_CORS_HEADERS,
     },
     isBase64Encoded: true,

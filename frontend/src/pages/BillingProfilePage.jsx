@@ -47,6 +47,7 @@ export default function BillingProfilePage() {
       accountHolder: '',
       accountNumber: '',
       ifscCode: '',
+      bankBranch: '',
     },
   });
   const [logo, setLogo] = useState(null);
@@ -436,6 +437,15 @@ export default function BillingProfilePage() {
                 label="IFSC / Swift / Routing Code"
                 name="account.ifscCode"
                 value={profile.accountDetail.ifscCode}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Bank Branch"
+                name="account.bankBranch"
+                value={profile.accountDetail.bankBranch || ''}
                 onChange={handleChange}
               />
             </Grid>

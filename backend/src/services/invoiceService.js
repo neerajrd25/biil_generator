@@ -1,4 +1,5 @@
 import { calculateBillTotals } from './billCalculationService.js';
+import { normalizeAnnexure } from './annexureService.js';
 
 export const PAYMENT_STATUS = {
   UNPAID: 'UNPAID',
@@ -128,15 +129,7 @@ export function buildInvoiceContent(body, user) {
 
   const calculated = calculateBillTotals(lineItems, taxRate);
 
-  const sanitizedParticulars = Array.isArray(particulars)
-    ? particulars
-        .filter((p) => p && str(p.description) !== '')
-        .map((p, idx) => ({
-          srNo: p.srNo || idx + 1,
-          description: str(p.description),
-          remarks: str(p.remarks),
-        }))
-    : [];
+  const annexure = normalizeAnnexure(body.annexure, particulars);
 
   return {
     billDate,
@@ -164,7 +157,7 @@ export function buildInvoiceContent(body, user) {
       clientPin: billTo.clientPin || '',
     },
     lineItems: calculated.lineItems,
-    particulars: sanitizedParticulars,
+    annexure,
     subtotal: calculated.subtotal,
     taxRate: calculated.taxRate,
     taxAmount: calculated.taxAmount,
@@ -174,6 +167,7 @@ export function buildInvoiceContent(body, user) {
       accountHolder: accountDetail.accountHolder || '',
       accountNumber: accountDetail.accountNumber || '',
       ifscCode: accountDetail.ifscCode || '',
+      bankBranch: accountDetail.bankBranch || '',
     },
     notes: body.notes || '',
   };

@@ -95,7 +95,7 @@ export default function InvoiceList({ bills, loading, emptyText, onBillUpdated, 
   const downloadPdf = () => {
     const a = document.createElement('a');
     a.href = pdf.url;
-    a.download = `${pdf.invoiceNumber}.pdf`;
+    a.download = `${String(pdf.invoiceNumber).replace(/[^\w.-]+/g, '_')}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

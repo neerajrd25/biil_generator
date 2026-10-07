@@ -14,6 +14,8 @@ import { Link as RouterLink, useNavigate, useParams, useSearchParams } from 'rea
 import LockIcon from '@mui/icons-material/Lock';
 import api from '../api/client';
 import { CURRENCIES, errorMessage } from '../utils/format';
+import AnnexureEditor from '../components/AnnexureEditor';
+import { emptyAnnexure, annexureFromBill } from '../utils/tabular';
 
 export default function CreateBillPage() {
   const navigate = useNavigate();
@@ -66,6 +68,7 @@ export default function CreateBillPage() {
     accountHolder: '',
     accountNumber: '',
     ifscCode: '',
+    bankBranch: '',
   });
 
   const [lineItems, setLineItems] = useState([
@@ -74,9 +77,7 @@ export default function CreateBillPage() {
 
   // Particulars / Bill Summary (Annexure on next page)
   const [includeParticulars, setIncludeParticulars] = useState(false);
-  const [particulars, setParticulars] = useState([
-    { srNo: 1, description: '', remarks: '' },
-  ]);
+  const [annexure, setAnnexure] = useState(emptyAnnexure);
 
   // Preview Modal State
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -160,9 +161,10 @@ export default function CreateBillPage() {
       notes: bill.notes || '',
     });
     setLineItems(bill.lineItems.map((item, i) => ({ id: item.id || i + 1, name: item.name, quantity: item.quantity, price: item.price })));
-    if (bill.particulars?.length) {
+    const loaded = annexureFromBill(bill);
+    if (loaded) {
       setIncludeParticulars(true);
-      setParticulars(bill.particulars.map((p, i) => ({ srNo: p.srNo || i + 1, description: p.description, remarks: p.remarks })));
+      setAnnexure(loaded);
     }
   };
 
@@ -199,24 +201,6 @@ export default function CreateBillPage() {
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
-  // Particulars handlers
-  const handleParticularsChange = (index, field, value) => {
-    const updated = [...particulars];
-    updated[index][field] = value;
-    setParticulars(updated);
-  };
-
-  const addParticularsRow = () => {
-    setParticulars([...particulars, { srNo: particulars.length + 1, description: '', remarks: '' }]);
-  };
-
-  const removeParticularsRow = (index) => {
-    if (particulars.length === 1) return;
-    const filtered = particulars.filter((_, i) => i !== index);
-    const renumbered = filtered.map((p, i) => ({ ...p, srNo: i + 1 }));
-    setParticulars(renumbered);
-  };
-
   // Live calculation
   const subtotal = lineItems.reduce((acc, item) => {
     const q = Number(item.quantity) || 0;
@@ -237,7 +221,7 @@ export default function CreateBillPage() {
     dueDate: invoiceMeta.dueDate,
     notes: invoiceMeta.notes,
     accountDetail,
-    particulars: includeParticulars ? particulars : [],
+    annexure: includeParticulars ? annexure : null,
   });
 
   const handlePreviewPdf = async () => {
@@ -709,10 +693,10 @@ export default function CreateBillPage() {
                 <PostAddIcon sx={{ color: '#4F46E5' }} />
                 <div>
                   <Typography variant="subtitle1" fontWeight={700} color="#1E293B">
-                    Particulars / Bill Summary (Optional - Page 2 Annexure)
+                    Annexure / Particulars (Optional - Page 2)
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Itemized list of particulars, scope of work, deliverables, and remarks printed automatically on the next page of your PDF.
+                    A timesheet, itemized table or free-text scope of work, printed on the next page(s) of your PDF. Paste straight from Excel.
                   </Typography>
                 </div>
               </Box>
@@ -729,66 +713,7 @@ export default function CreateBillPage() {
             </Box>
 
             {includeParticulars && (
-              <Box mt={3}>
-                <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead sx={{ bgcolor: '#F1F5F9' }}>
-                      <TableRow>
-                        <TableCell sx={{ fontWeight: 600, width: 80 }} align="center">Sr No</TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>Particulars / Description</TableCell>
-                        <TableCell sx={{ fontWeight: 600, width: 220 }}>Remarks / Details</TableCell>
-                        <TableCell sx={{ width: 60 }} align="center"></TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {particulars.map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell align="center">
-                            <Typography variant="body2" fontWeight={600}>{row.srNo}</Typography>
-                          </TableCell>
-                          <TableCell>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              placeholder="e.g. Scope of work, milestone delivered, task details..."
-                              value={row.description}
-                              onChange={(e) => handleParticularsChange(index, 'description', e.target.value)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              placeholder="e.g. Completed, Phase 1"
-                              value={row.remarks}
-                              onChange={(e) => handleParticularsChange(index, 'remarks', e.target.value)}
-                            />
-                          </TableCell>
-                          <TableCell align="center">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => removeParticularsRow(index)}
-                              disabled={particulars.length === 1}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-
-                <Button
-                  startIcon={<AddIcon />}
-                  variant="outlined"
-                  size="small"
-                  onClick={addParticularsRow}
-                >
-                  Add Particulars Row
-                </Button>
-              </Box>
+              <AnnexureEditor value={annexure} onChange={setAnnexure} />
             )}
           </CardContent>
         </Card>

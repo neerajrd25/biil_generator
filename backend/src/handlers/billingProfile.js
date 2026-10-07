@@ -41,6 +41,7 @@ export async function handleBillingProfile(event) {
             accountHolder: '',
             accountNumber: '',
             ifscCode: '',
+            bankBranch: '',
           },
         },
       });
@@ -74,6 +75,7 @@ export async function handleBillingProfile(event) {
           accountHolder: body.accountDetail?.accountHolder || '',
           accountNumber: body.accountDetail?.accountNumber || '',
           ifscCode: body.accountDetail?.ifscCode || '',
+          bankBranch: body.accountDetail?.bankBranch || '',
         },
         updatedAt: now,
       };
